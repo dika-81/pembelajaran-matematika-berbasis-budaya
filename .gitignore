@@ -1,0 +1,10 @@
+# File sumber tanpa watermark - JANGAN diunggah
+Pembelajaran Matematika Berbasis Budaya.pdf
+
+# berkas kerja
+__pycache__/
+*.pyc
+contoh-watermark.pdf
+preview*.png
+uji*.png
+.claude/

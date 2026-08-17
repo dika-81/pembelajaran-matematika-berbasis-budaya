@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
+<title>Pembelajaran Matematika Berbasis Budaya</title>
+<style>
+  :root {
+    --latar: #1f2328;
+    --panel: #2b3138;
+    --garis: #3d444d;
+    --teks: #e6e8ea;
+    --redup: #9aa4ae;
+    --aksen: #d9a441;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--latar);
+    color: var(--teks);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--garis);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+    flex: 1 1 260px;
+    min-width: 0;
+  }
+  header h1 small {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--redup);
+  }
+  .alat { display: flex; align-items: center; gap: 6px; }
+  button {
+    background: #363d45;
+    color: var(--teks);
+    border: 1px solid var(--garis);
+    border-radius: 6px;
+    padding: 6px 11px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #424a53; }
+  button:disabled { opacity: .45; cursor: default; }
+  #posisi { font-size: 13px; color: var(--redup); min-width: 92px; text-align: center; }
+  #posisi input {
+    width: 46px;
+    background: var(--latar);
+    color: var(--teks);
+    border: 1px solid var(--garis);
+    border-radius: 4px;
+    padding: 4px 5px;
+    font-size: 13px;
+    text-align: center;
+  }
+  main { padding: 18px 12px 60px; }
+  .halaman {
+    position: relative;
+    margin: 0 auto 18px;
+    background: #fff;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, .45);
+    max-width: 100%;
+  }
+  .halaman canvas { display: block; width: 100%; height: auto; }
+  .halaman .nomor {
+    position: absolute;
+    right: 8px;
+    bottom: 6px;
+    font-size: 11px;
+    color: #b9bfc6;
+    background: rgba(31, 35, 40, .55);
+    border-radius: 3px;
+    padding: 1px 6px;
+    pointer-events: none;
+  }
+  /* penghalang seleksi/simpan gambar langsung dari kanvas */
+  .halaman::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  #status {
+    text-align: center;
+    color: var(--redup);
+    font-size: 14px;
+    padding: 40px 16px;
+    line-height: 1.6;
+  }
+  footer {
+    text-align: center;
+    color: var(--redup);
+    font-size: 12px;
+    padding: 8px 16px 24px;
+    line-height: 1.6;
+  }
+  footer b { color: var(--aksen); font-weight: 600; }
+  @media print {
+    body { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Pembelajaran Matematika Berbasis Budaya
+    <small>Editor: Andika Arisetyawan &middot; hanya untuk dibaca</small>
+  </h1>
+  <div class="alat">
+    <button id="mundur" title="Halaman sebelumnya" disabled>&#8249;</button>
+    <span id="posisi"><input id="ke" type="text" value="1" inputmode="numeric"> / <span id="total">…</span></span>
+    <button id="maju" title="Halaman berikutnya" disabled>&#8250;</button>
+    <button id="kecil" title="Perkecil">&minus;</button>
+    <button id="besar" title="Perbesar">+</button>
+  </div>
+</header>
+
+<main>
+  <div id="status">Memuat buku…</div>
+  <div id="wadah"></div>
+</main>
+
+<footer>
+  &copy; <b>Property of Andika Arisetyawan</b><br>
+  Dokumen ini disediakan untuk dibaca di halaman ini. Dilarang menggandakan,
+  mencetak, atau menyebarluaskan tanpa izin penulis.
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var BERKAS = "Pembelajaran Matematika Berbasis Budaya - Watermark.pdf";
+  var SKALA_MIN = 0.5, SKALA_MAKS = 3;
+
+  var wadah = document.getElementById("wadah");
+  var status = document.getElementById("status");
+  var elTotal = document.getElementById("total");
+  var elKe = document.getElementById("ke");
+  var tbMundur = document.getElementById("mundur");
+  var tbMaju = document.getElementById("maju");
+
+  var pdf = null, jumlah = 0, skala = 1.25, aktif = 1;
+  var bingkai = [], sudah = [], sedang = {};
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  // hanya render halaman yang terlihat -> buku 200+ halaman tetap ringan
+  var pengamat = new IntersectionObserver(function (entri) {
+    entri.forEach(function (e) {
+      var n = Number(e.target.dataset.halaman);
+      if (e.isIntersecting) {
+        gambar(n);
+        if (e.intersectionRatio > 0.35) tandaiAktif(n);
+      }
+    });
+  }, { rootMargin: "600px 0px", threshold: [0, 0.35] });
+
+  pdfjsLib.getDocument({
+    url: encodeURI(BERKAS),
+    disableAutoFetch: true,
+    disableStream: false
+  }).promise.then(function (dok) {
+    pdf = dok;
+    jumlah = dok.numPages;
+    elTotal.textContent = jumlah;
+    status.style.display = "none";
+    tbMundur.disabled = false;
+    tbMaju.disabled = false;
+    return dok.getPage(1);
+  }).then(function (hal) {
+    var uk = hal.getViewport({ scale: 1 });
+    for (var i = 1; i <= jumlah; i++) siapkanBingkai(i, uk.width, uk.height);
+    gambar(1);
+  }).catch(function (e) {
+    status.innerHTML = "Gagal memuat dokumen.<br>" + (e && e.message ? e.message : "");
+  });
+
+  function siapkanBingkai(n, lebar, tinggi) {
+    var div = document.createElement("div");
+    div.className = "halaman";
+    div.dataset.halaman = n;
+    div.style.width = Math.round(lebar * skala) + "px";
+    div.style.aspectRatio = lebar + " / " + tinggi;
+    var nomor = document.createElement("span");
+    nomor.className = "nomor";
+    nomor.textContent = n + " / " + jumlah;
+    div.appendChild(nomor);
+    wadah.appendChild(div);
+    bingkai[n] = div;
+    pengamat.observe(div);
+  }
+
+  function gambar(n) {
+    if (!pdf || n < 1 || n > jumlah || sudah[n] || sedang[n]) return;
+    sedang[n] = true;
+    pdf.getPage(n).then(function (hal) {
+      var rasio = Math.min(window.devicePixelRatio || 1, 2);
+      var tampak = hal.getViewport({ scale: skala * rasio });
+      var kanvas = document.createElement("canvas");
+      kanvas.width = tampak.width;
+      kanvas.height = tampak.height;
+      return hal.render({ canvasContext: kanvas.getContext("2d"), viewport: tampak })
+        .promise.then(function () {
+          var lama = bingkai[n].querySelector("canvas");
+          if (lama) lama.remove();
+          bingkai[n].insertBefore(kanvas, bingkai[n].firstChild);
+          sudah[n] = true;
+          sedang[n] = false;
+        });
+    }).catch(function () { sedang[n] = false; });
+  }
+
+  function tandaiAktif(n) {
+    if (n === aktif) return;
+    aktif = n;
+    if (document.activeElement !== elKe) elKe.value = n;
+  }
+
+  function loncat(n) {
+    n = Math.min(Math.max(1, n | 0), jumlah);
+    if (!bingkai[n]) return;
+    tandaiAktif(n);
+    gambar(n);
+    bingkai[n].scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function ubahSkala(delta) {
+    var baru = Math.min(SKALA_MAKS, Math.max(SKALA_MIN, skala + delta));
+    if (baru === skala) return;
+    skala = baru;
+    for (var i = 1; i <= jumlah; i++) {
+      if (!bingkai[i]) continue;
+      var w = bingkai[i].querySelector("canvas");
+      bingkai[i].style.width =
+        Math.round(parseFloat(bingkai[i].style.width) / (skala - delta) * skala) + "px";
+      if (w) { w.remove(); sudah[i] = false; }
+    }
+    [aktif - 1, aktif, aktif + 1].forEach(gambar);
+  }
+
+  tbMundur.onclick = function () { loncat(aktif - 1); };
+  tbMaju.onclick = function () { loncat(aktif + 1); };
+  document.getElementById("besar").onclick = function () { ubahSkala(0.25); };
+  document.getElementById("kecil").onclick = function () { ubahSkala(-0.25); };
+  elKe.addEventListener("change", function () { loncat(Number(elKe.value)); });
+  elKe.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { loncat(Number(elKe.value)); elKe.blur(); }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target === elKe) return;
+    if (e.key === "PageDown" || e.key === "ArrowRight") { e.preventDefault(); loncat(aktif + 1); }
+    if (e.key === "PageUp" || e.key === "ArrowLeft") { e.preventDefault(); loncat(aktif - 1); }
+    // cegah jalan pintas simpan / cetak
+    if ((e.ctrlKey || e.metaKey) && ["s", "p", "u"].indexOf(e.key.toLowerCase()) > -1) {
+      e.preventDefault();
+    }
+  });
+
+  document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  document.addEventListener("dragstart", function (e) { e.preventDefault(); });
+})();
+</script>
+</body>
+</html>
