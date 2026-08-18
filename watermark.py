@@ -32,6 +32,21 @@ TEBAL_GARIS = 0.014       # tebal garis tepi, relatif terhadap ukuran huruf
 GESER_BAYANGAN = 2.5      # jarak bayangan (pt)
 
 
+HAL_PENERBIT = 1          # halaman romawi ii (indeks 0-based)
+
+
+def hapus_penerbit(page):
+    """Menghapus tulisan "Gong Publishing" pada halaman romawi ii: baris
+    penerbit di atas Website/Email/Fb, dan penyebutan di dalam kotak katalog
+    (baris ditulis ulang menjadi "Cetakan 1, Serang, 2020")."""
+    baris_katalog = fitz.Rect(94.6, 377.7, 302.6, 391.0)
+    page.add_redact_annot(fitz.Rect(85.1, 531.4, 169.1, 544.7), fill=(1, 1, 1))
+    page.add_redact_annot(baris_katalog, fill=(1, 1, 1))
+    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)  # kotak tetap utuh
+    page.insert_text(fitz.Point(94.6, 388.4), "Cetakan 1, Serang, 2020",
+                     fontname="tiro", fontsize=12, color=(0, 0, 0))
+
+
 def gambar_watermark(page):
     r = page.rect
     font = fitz.Font(FONT)
@@ -71,6 +86,8 @@ def proses(src=SRC, dst=DST, halaman=None):
 
     for i in nomor:
         page = doc[i]
+        if i == HAL_PENERBIT:
+            hapus_penerbit(page)
         gambar_watermark(page)
 
         pix = page.get_pixmap(dpi=DPI)
